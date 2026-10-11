@@ -44,7 +44,7 @@ export default function ChatComposer({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="rounded-lg border border-[#454545] bg-transparent px-3 py-2 text-sm text-[#d4d4d4] hover:bg-[#2a2a2a]"
+            className="rounded-lg border border-[#454545] bg-transparent px-3 py-2 text-sm text-[#d4d4d4] hover:bg-[#2a2a2a] cursor-pointer"
             onClick={onAttach}
             aria-label="Attach a PDF document"
             title="Attach a PDF"
@@ -53,7 +53,7 @@ export default function ChatComposer({
           </button>
           <button
             type="submit"
-            className="rounded-[10px] bg-[#c4b5fd] px-4 py-2.5 font-bold text-[#17132a] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-[10px] bg-[#c4b5fd] px-4 py-2.5 font-bold text-[#17132a] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!input.trim() || isLoading}
           >
             {isLoading ? "Thinking..." : "Send ↑"}
@@ -62,7 +62,7 @@ export default function ChatComposer({
           {isLoading && (
             <button
               type="button"
-              className="rounded-lg bg-[#b42318] px-4 py-2.5 text-white hover:bg-[#912018]"
+              className="rounded-lg bg-[#b42318] px-4 py-2.5 text-white hover:bg-[#912018] cursor-pointer"
               onClick={onStop}
             >
               Stop

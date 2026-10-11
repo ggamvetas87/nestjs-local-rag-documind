@@ -153,7 +153,7 @@ export default function DocumentUploadModal({
           <strong className="break-words">
             {file ? file.name : "Choose a PDF file"}
           </strong>
-          <span className="text-sm text-[#a3a3a3]">PDF files up to 10 MB</span>
+          <span className="text-center text-sm text-[#a3a3a3]">PDF files up to 10 MB</span>
 
           <input
             type="file"
@@ -177,7 +177,7 @@ export default function DocumentUploadModal({
           <div className="flex items-center gap-3">
                 <button
                     type="button"
-                    className="rounded-lg bg-[#333] px-4 py-2.5 text-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-[#333] px-4 py-2.5 text-[#f5f5f5] cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={onClose}
                     disabled={isUploading}
                 >
@@ -198,7 +198,7 @@ export default function DocumentUploadModal({
                     </div>
                 )}
                 {isUploading && (
-                    <button type="button" onClick={handleCancelUpload}>
+                    <button type="button" onClick={handleCancelUpload} className="cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
                         Cancel upload
                     </button>
                 )}

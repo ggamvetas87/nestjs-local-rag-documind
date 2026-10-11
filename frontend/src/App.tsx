@@ -248,7 +248,7 @@ function App() {
                 >
                   <button
                     type="button"
-                    className="min-w-0 truncate text-sm text-[#d4d4d4]"
+                    className="min-w-0 truncate text-sm text-[#d4d4d4] cursor-pointer"
                     aria-pressed={isSelected}
                     onClick={() =>
                       setSelectedDocumentId(
@@ -262,7 +262,7 @@ function App() {
 
                   <button
                     type="button"
-                    className="text-lg leading-none text-[#a3a3a3] hover:text-white"
+                    className="text-lg leading-none text-[#a3a3a3] hover:text-white cursor-pointer"
                     aria-label={`Remove ${document.filename}`}
                     onClick={() => {
                       setDocuments((previous) =>
