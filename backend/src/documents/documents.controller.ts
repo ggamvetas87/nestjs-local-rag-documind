@@ -12,10 +12,16 @@ import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { DocumentsService } from '@/documents/documents.service';
+import { DocumentChunkingService } from '@/documents/document-chunking.service';
+import { EmbeddingsService } from '@/embeddings/embeddings.service';
 
 @Controller('documents')
 export class DocumentsController {
-  constructor(private readonly documentsService: DocumentsService) {}
+  constructor(
+    private readonly documentsService: DocumentsService,
+    private readonly documentChunkingService: DocumentChunkingService,
+    private readonly embeddingsService: EmbeddingsService,
+  ) {}
 
   @Post('upload')
   @HttpCode(HttpStatus.OK)
@@ -56,11 +62,47 @@ export class DocumentsController {
         abortController.signal,
       );
 
+      if (!document || abortController.signal.aborted || res.destroyed) {
+        return;
+      }
+
+      const chunks = this.documentChunkingService.chunkPages(
+        document.filename,
+        document.pages,
+      );
+
       if (abortController.signal.aborted || res.destroyed) {
         return;
       }
 
-      res.status(HttpStatus.OK).json(document);
+      const chunksWithEmbeddings: Array<
+        (typeof chunks)[number] & { embedding: number[] }
+      > = [];
+
+      for (const chunk of chunks) {
+        if (abortController.signal.aborted || res.destroyed) {
+          return;
+        }
+
+        const embedding = await this.embeddingsService.generateEmbedding(
+          chunk.text,
+        );
+
+        chunksWithEmbeddings.push({
+          ...chunk,
+          embedding,
+        });
+      }
+
+      if (abortController.signal.aborted || res.destroyed) {
+        return;
+      }
+
+      res.status(HttpStatus.OK).json({
+        ...document,
+        chunks: chunksWithEmbeddings,
+        chunkCount: chunksWithEmbeddings.length,
+      });
     } catch (error) {
       if (abortController.signal.aborted || res.destroyed) {
         return;
