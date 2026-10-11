@@ -1,11 +1,11 @@
 
 import { useState, useRef } from "react";
-import type { ExtractedPdfDocument } from "@/components/documents/types";
+import type { UploadedPdfDocument } from "@/components/documents/types";
 
-interface DocumentUploadModalProps {
+type DocumentUploadModalProps = {
   onClose: () => void;
-  onUploaded: (document: ExtractedPdfDocument) => void;
-}
+  onUploaded: (document: UploadedPdfDocument) => void;
+};
 
 const API_URL = import.meta.env.VITE_API_URL;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -89,7 +89,7 @@ export default function DocumentUploadModal({
         );
       }
 
-      const document: ExtractedPdfDocument =
+      const document: UploadedPdfDocument =
         await response.json();
 
       onUploaded(document);
