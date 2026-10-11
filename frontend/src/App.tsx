@@ -1,22 +1,31 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatMessages from "@/components/chat/ChatMessages";
+import DocumentUploadModal from "@/components/documents/DocumentUploadModal";
 import type { Message } from "@/components/chat/types";
-import DocumentsPanel from "@/components/documents/DocumentsPanel";
+import type { ExtractedPdfDocument } from "@/components/documents/types";
 import "@/App.css";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 function App() {
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasReceivedFirstChunk, setHasReceivedFirstChunk] = useState(false);
+  const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
+  const [documents, setDocuments] = useState<
+    { id: string; document: ExtractedPdfDocument }[]
+  >([]);
 
-  
   async function handleSubmit(event: { preventDefault: () => void }) {
     event.preventDefault();
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const message = input.trim();
 
@@ -44,6 +53,7 @@ function App() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ message }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
@@ -92,16 +102,28 @@ function App() {
         );
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.",
-      );
+      if (err instanceof Error && err.name === "AbortError") {
+        // User aborted the request.
+        // We keep the response that has already been produced.
+      } else {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Something went wrong. Please try again.",
+        );
+      }
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+
       setIsLoading(false);
     }
   }
 
+  function handleStop() {
+    abortControllerRef.current?.abort();
+  }
 
   return (
     <main className="app">
@@ -125,15 +147,75 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      <DocumentsPanel />
-      <p></p>
+      {documents.length > 0 && (
+        <div className="attached-documents attachments">
+          {documents.map(({ id, document }) => (
+            <div className="attached-document attachment" key={id}>
+              <div>
+                <span>📄 {document.filename}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${document.filename}`}
+                  onClick={() =>
+                    setDocuments((previous) =>
+                      previous.filter((item) => item.id !== id),
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* <div className="attached-document-info">
+                <strong>{document.filename}</strong>
+                <span aria-hidden="true">PDF</span>
+                <small>
+                  {document.pageCount}{" "}
+                  {document.pageCount === 1 ? "page" : "pages"}
+                </small>
+              </div> */}
+            </div>
+          ))}
+        </div>
+        // <div className="attached-documents">
+        //   {documents.map((document, index) => (
+        //     <div
+        //       className="attached-document"
+        //       key={`${document.filename}-${index}`}
+        //     >
+        //       <span aria-hidden="true">PDF</span>
+        //       <div className="attached-document-info">
+        //         <strong>{document.filename}</strong>
+        //         <small>
+        //           {document.pageCount}{" "}
+        //           {document.pageCount === 1 ? "page" : "pages"}
+        //         </small>
+        //       </div>
+        //     </div>
+        //   ))}
+        // </div>
+      )}
 
       <ChatComposer
         input={input}
         isLoading={isLoading}
         onInputChange={setInput}
         onSubmit={handleSubmit}
+        onAttach={() => setIsDocumentModalOpen(true)}
+        onStop={handleStop}
       />
+
+      {isDocumentModalOpen && (
+        <DocumentUploadModal
+          onClose={() => setIsDocumentModalOpen(false)}
+          onUploaded={(document) =>
+            setDocuments(previous => [
+              ...previous,
+              { id: crypto.randomUUID(), document }
+            ])
+          }
+        />
+      )}
 
       <footer className="footer">
         Powered by Ollama · Running locally on your machine

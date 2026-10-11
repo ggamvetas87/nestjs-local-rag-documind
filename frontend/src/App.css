@@ -537,3 +537,84 @@
   margin-right: 0.5rem;
   accent-color: #a78bfa;
 }
+
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.composer .attach-button {
+  border: 1px solid #454545;
+  background: transparent;
+  color: #d4d4d4;
+}
+
+.composer .attach-button:hover {
+  background: #2a2a2a;
+}
+
+.composer .attach-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+.attached-documents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.attached-document {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #383838;
+  border-radius: 10px;
+  background: #1c1c1c;
+}
+
+.attached-document > span {
+  padding: 0.35rem;
+  border-radius: 5px;
+  background: #302653;
+  color: #c4b5fd;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.attached-document-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.attached-document-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.attached-document-info small {
+  color: #a3a3a3;
+}
+
+.stop-button {
+  background: #b42318;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.stop-button:hover {
+  background: #912018;
+}
