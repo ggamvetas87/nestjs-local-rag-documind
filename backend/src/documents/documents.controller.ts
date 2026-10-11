@@ -29,6 +29,8 @@ export class DocumentsController {
     private readonly ragService: RagService,
   ) {}
 
+  // Handles PDF file uploads, extracts text, chunks the document,
+  // generates embeddings, and stores them in the vector store
   @Post('upload')
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
@@ -120,6 +122,8 @@ export class DocumentsController {
     }
   }
 
+  // Handles search requests by generating an embedding for the query
+  // and retrieving the most similar document chunks from the vector store
   @Post('search')
   @HttpCode(HttpStatus.OK)
   async searchDocuments(@Body() body: { query?: string; documentId?: string }) {
@@ -151,6 +155,8 @@ export class DocumentsController {
     };
   }
 
+  // Handles question-answering requests by using the RAG service to retrieve context from the vector store
+  // and generate an answer with the local LLM
   @Post('ask')
   @HttpCode(HttpStatus.OK)
   async askDocument(@Body() body: { query?: string; documentId?: string }) {

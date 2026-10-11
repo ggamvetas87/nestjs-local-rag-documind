@@ -14,6 +14,7 @@ import { ChatRequestDto } from '@/chat/dto/chat-request.dto';
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
+  // Handles chat requests and returns the response from the local LLM
   @Post()
   @HttpCode(HttpStatus.OK)
   async chat(@Body() body: ChatRequestDto) {
@@ -22,6 +23,7 @@ export class ChatController {
     return { answer };
   }
 
+  // Handles chat requests and returns the response from the local LLM as a stream of strings
   @Post('stream')
   @HttpCode(HttpStatus.OK)
   async chatStream(
@@ -34,7 +36,7 @@ export class ChatController {
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('X-Accel-Buffering', 'no');
 
-    // The browser canceled the request or closed the connection.
+    // The browser canceled the request or closed the connection
     res.on('close', () => {
       if (!res.writableEnded) {
         abortController.abort();

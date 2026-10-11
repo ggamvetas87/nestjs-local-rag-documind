@@ -12,6 +12,8 @@ export class RagService {
     private readonly vectorStoreService: VectorStoreService,
   ) {}
 
+  // Handles question-answering requests using the local LLM
+  // and the vector store for context retrieval
   async ask(query: string, documentId?: string) {
     const normalizedQuery = query?.trim();
 

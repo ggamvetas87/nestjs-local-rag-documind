@@ -14,6 +14,7 @@ export interface SearchResult extends StoredDocumentChunk {
 export class VectorStoreService {
   private readonly documents = new Map<string, StoredDocumentChunk[]>();
 
+  // Adds a new document along with its chunks and embeddings to the vector store
   addDocument(
     documentId: string,
     chunks: Array<DocumentChunk & { embedding: number[] }>,
@@ -26,6 +27,7 @@ export class VectorStoreService {
     this.documents.set(documentId, storedChunks);
   }
 
+  // Searches for the most similar document chunks based on the query embedding
   search(
     queryEmbedding: number[],
     options: { documentId?: string; topK?: number } = {},
@@ -53,6 +55,11 @@ export class VectorStoreService {
     return this.documents.delete(documentId);
   }
 
+  // Computes the cosine similarity between two vectors.
+  // Returns a value between -1 and 1, where:
+  // [+] 1 indicates identical direction
+  // [+] 0 indicates orthogonality
+  // [+] -1 indicates opposite direction.
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
       throw new Error('Embedding dimensions do not match.');

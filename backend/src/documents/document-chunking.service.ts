@@ -13,6 +13,7 @@ export class DocumentChunkingService {
   private readonly chunkSize = 1_000;
   private readonly chunkOverlap = 150;
 
+  // Chunks the pages of a PDF document into smaller text segments for easier processing
   chunkPages(filename: string, pages: ExtractedPdfPage[]): DocumentChunk[] {
     const chunks: DocumentChunk[] = [];
 

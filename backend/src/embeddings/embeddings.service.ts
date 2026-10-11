@@ -5,6 +5,7 @@ import ollama from 'ollama';
 export class EmbeddingsService {
   private readonly model = 'qwen3-embedding:0.6b';
 
+  // Generates an embedding for the given text using the specified model
   async generateEmbedding(text: string): Promise<number[]> {
     if (!text.trim()) {
       throw new Error('Cannot generate an embedding for empty text.');

@@ -3,6 +3,7 @@ import ollama from 'ollama';
 
 @Injectable()
 export class ChatService {
+  // Sends a message to the local LLM and returns the response as a string
   async chat(message: string): Promise<string> {
     try {
       const response = await ollama.chat({
@@ -25,6 +26,7 @@ export class ChatService {
     }
   }
 
+  // Sends a message to the local LLM and returns the response as a stream of strings
   async *chatStream(
     message: string,
     signal?: AbortSignal,
