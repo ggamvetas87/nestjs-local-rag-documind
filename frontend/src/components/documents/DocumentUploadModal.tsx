@@ -18,7 +18,12 @@ export default function DocumentUploadModal({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState("");
 
+  const abortControllerRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleCancelUpload() {
+    abortControllerRef.current?.abort();
+  }
 
   function handleResetFile() {
     setFile(null);
@@ -54,6 +59,9 @@ export default function DocumentUploadModal({
   async function handleUpload() {
     if (!file || isUploading) return;
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setError("");
     setIsUploading(true);
 
@@ -66,6 +74,7 @@ export default function DocumentUploadModal({
         {
           method: "POST",
           body: formData,
+          signal: controller.signal
         },
       );
 
@@ -86,12 +95,20 @@ export default function DocumentUploadModal({
       onUploaded(document);
       onClose();
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
+
       setError(
         err instanceof Error
           ? err.message
           : "Could not upload the PDF.",
       );
     } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+      }
+
       setIsUploading(false);
     }
   }
@@ -179,6 +196,11 @@ export default function DocumentUploadModal({
                             Remove
                         </button>
                     </div>
+                )}
+                {isUploading && (
+                    <button type="button" onClick={handleCancelUpload}>
+                        Cancel upload
+                    </button>
                 )}
             </div>
 

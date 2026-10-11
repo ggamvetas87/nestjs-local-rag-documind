@@ -144,6 +144,18 @@ function App() {
         onSuggestion={() => setInput("Explain RAG and how it works.")}
       />
 
+      {isDocumentModalOpen && (
+        <DocumentUploadModal
+          onClose={() => setIsDocumentModalOpen(false)}
+          onUploaded={(document) =>
+            setDocuments(previous => [
+              ...previous,
+              { id: crypto.randomUUID(), document }
+            ])
+          }
+        />
+      )}
+
       <div className="sticky bottom-0 z-20 mb-3 bg-[#14151b]/95 pb-1 pt-3 backdrop-blur-sm">
         {error && <p className="text-[13px] text-[#fca5a5]">{error}</p>}
 
@@ -175,18 +187,6 @@ function App() {
           onAttach={() => setIsDocumentModalOpen(true)}
           onStop={handleStop}
         />
-
-        {isDocumentModalOpen && (
-          <DocumentUploadModal
-            onClose={() => setIsDocumentModalOpen(false)}
-            onUploaded={(document) =>
-              setDocuments(previous => [
-                ...previous,
-                { id: crypto.randomUUID(), document }
-              ])
-            }
-          />
-        )}
 
         <footer className="py-5 text-center text-xs text-[#777989]">
           Powered by Ollama · Running locally on your machine
