@@ -144,52 +144,54 @@ function App() {
         onSuggestion={() => setInput("Explain RAG and how it works.")}
       />
 
-      {error && <p className="text-[13px] text-[#fca5a5]">{error}</p>}
+      <div className="sticky bottom-0 z-20 mb-3 bg-[#14151b]/95 pb-1 pt-3 backdrop-blur-sm">
+        {error && <p className="text-[13px] text-[#fca5a5]">{error}</p>}
 
-      {documents.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {documents.map(({ id, document }) => (
-            <div className="flex max-w-full items-center gap-2 rounded-[10px] border border-[#383838] bg-[#1c1c1c] px-3 py-2" key={id}>
-              <span className="min-w-0 truncate text-sm text-[#d4d4d4]">📄 {document.filename}</span>
-                <button
-                  type="button"
-                  className="text-lg leading-none text-[#a3a3a3] hover:text-white"
-                  aria-label={`Remove ${document.filename}`}
-                  onClick={() =>
-                    setDocuments((previous) =>
-                      previous.filter((item) => item.id !== id),
-                    )
-                  }
-                >×</button>
-            </div>
-          ))}
-        </div>
-      )}
+        {documents.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {documents.map(({ id, document }) => (
+              <div className="flex max-w-full items-center gap-2 rounded-[10px] border border-[#383838] bg-[#1c1c1c] px-3 py-2" key={id}>
+                <span className="min-w-0 truncate text-sm text-[#d4d4d4]">📄 {document.filename}</span>
+                  <button
+                    type="button"
+                    className="text-lg leading-none text-[#a3a3a3] hover:text-white"
+                    aria-label={`Remove ${document.filename}`}
+                    onClick={() =>
+                      setDocuments((previous) =>
+                        previous.filter((item) => item.id !== id),
+                      )
+                    }
+                  >×</button>
+              </div>
+            ))}
+          </div>
+        )}
 
-      <ChatComposer
-        input={input}
-        isLoading={isLoading}
-        onInputChange={setInput}
-        onSubmit={handleSubmit}
-        onAttach={() => setIsDocumentModalOpen(true)}
-        onStop={handleStop}
-      />
-
-      {isDocumentModalOpen && (
-        <DocumentUploadModal
-          onClose={() => setIsDocumentModalOpen(false)}
-          onUploaded={(document) =>
-            setDocuments(previous => [
-              ...previous,
-              { id: crypto.randomUUID(), document }
-            ])
-          }
+        <ChatComposer
+          input={input}
+          isLoading={isLoading}
+          onInputChange={setInput}
+          onSubmit={handleSubmit}
+          onAttach={() => setIsDocumentModalOpen(true)}
+          onStop={handleStop}
         />
-      )}
 
-      <footer className="py-5 text-center text-xs text-[#777989]">
-        Powered by Ollama · Running locally on your machine
-      </footer>
+        {isDocumentModalOpen && (
+          <DocumentUploadModal
+            onClose={() => setIsDocumentModalOpen(false)}
+            onUploaded={(document) =>
+              setDocuments(previous => [
+                ...previous,
+                { id: crypto.randomUUID(), document }
+              ])
+            }
+          />
+        )}
+
+        <footer className="py-5 text-center text-xs text-[#777989]">
+          Powered by Ollama · Running locally on your machine
+        </footer>
+      </div>
     </main>
   );
 }
