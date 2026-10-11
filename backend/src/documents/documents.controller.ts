@@ -17,6 +17,7 @@ import { DocumentsService } from '@/documents/documents.service';
 import { DocumentChunkingService } from '@/documents/document-chunking.service';
 import { EmbeddingsService } from '@/embeddings/embeddings.service';
 import { VectorStoreService } from '@/vector-store/vector-store.service';
+import { RagService } from '@/documents/rag.service';
 
 @Controller('documents')
 export class DocumentsController {
@@ -25,6 +26,7 @@ export class DocumentsController {
     private readonly documentChunkingService: DocumentChunkingService,
     private readonly embeddingsService: EmbeddingsService,
     private readonly vectorStoreService: VectorStoreService,
+    private readonly ragService: RagService,
   ) {}
 
   @Post('upload')
@@ -147,5 +149,15 @@ export class DocumentsController {
         score: Number(result.score.toFixed(4)),
       })),
     };
+  }
+
+  @Post('ask')
+  @HttpCode(HttpStatus.OK)
+  async askDocument(@Body() body: { query?: string; documentId?: string }) {
+    if (!body?.query?.trim()) {
+      throw new BadRequestException('A question is required.');
+    }
+
+    return this.ragService.ask(body.query, body.documentId);
   }
 }
