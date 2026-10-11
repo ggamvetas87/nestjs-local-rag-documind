@@ -1,7 +1,6 @@
 
 import { useState, useRef } from "react";
 import type { ExtractedPdfDocument } from "@/components/documents/types";
-import "@/components/documents/Documents.css";
 
 interface DocumentUploadModalProps {
   onClose: () => void;
@@ -99,7 +98,7 @@ export default function DocumentUploadModal({
 
   return (
     <div
-      className="document-modal-backdrop"
+      className="fixed inset-0 z-[1000] grid place-items-center bg-black/65 p-4"
       onMouseDown={(event) => {
         if (
           event.target === event.currentTarget &&
@@ -110,20 +109,20 @@ export default function DocumentUploadModal({
       }}
     >
       <section
-        className="document-modal"
+        className="w-full max-w-[460px] rounded-2xl border border-[#383838] bg-[#1c1c1c] p-6 text-[#f5f5f5] shadow-[0_24px_80px_rgb(0_0_0_/_35%)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="document-modal-title"
       >
-        <header className="document-modal-header">
+        <header className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h2 id="document-modal-title">Add a document</h2>
-            <p>Upload a PDF to DocuMind.</p>
+            <h2 id="document-modal-title" className="m-0 text-xl">Add a document</h2>
+            <p className="mt-2 text-sm text-[#a3a3a3]">Upload a PDF to DocuMind.</p>
           </div>
 
           <button
             type="button"
-            className="document-modal-close"
+            className="cursor-pointer border-0 bg-transparent text-3xl leading-none text-[#a3a3a3] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onClose}
             disabled={isUploading}
             aria-label="Close dialog"
@@ -132,12 +131,12 @@ export default function DocumentUploadModal({
           </button>
         </header>
 
-        <label className="document-dropzone">
-          <span className="document-upload-icon">↑</span>
-          <strong>
+        <label className="flex cursor-pointer flex-col items-center gap-2.5 overflow-hidden rounded-xl border border-dashed border-[#555] p-8 text-center hover:border-[#9b87ff] hover:bg-[#7c5cff0f]">
+          <span className="grid size-[42px] place-items-center rounded-full bg-[#302653] text-2xl text-[#c4b5fd]">↑</span>
+          <strong className="break-words">
             {file ? file.name : "Choose a PDF file"}
           </strong>
-          <span>PDF files up to 10 MB</span>
+          <span className="text-sm text-[#a3a3a3]">PDF files up to 10 MB</span>
 
           <input
             type="file"
@@ -147,33 +146,35 @@ export default function DocumentUploadModal({
               handleFileChange(event.target.files?.[0])
             }
             ref={fileInputRef}
+            className="mt-2 w-full text-sm"
           />
         </label>
 
         {error && (
-          <p className="document-upload-error" role="alert">
+          <p className="text-sm text-[#f87171]" role="alert">
             {error}
           </p>
         )}
 
-        <footer className="document-modal-actions">
-            <div>
+        <footer className="mt-6 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
                 <button
                     type="button"
-                    className="document-button-secondary"
+                    className="rounded-lg bg-[#333] px-4 py-2.5 text-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={onClose}
                     disabled={isUploading}
                 >
                     Cancel
                 </button>
                 {file && (
-                    <div className="selected-file">
-                        <span>{file.name}</span>
+                    <div className="flex max-w-[180px] items-center gap-2 text-sm text-[#c4b5fd]">
+                      <span className="truncate">{file.name}</span>
 
                         <button
                             type="button"
                             onClick={handleResetFile}
                             disabled={isUploading}
+                            className="shrink-0 text-xs underline"
                         >
                             Remove
                         </button>
@@ -183,7 +184,7 @@ export default function DocumentUploadModal({
 
           <button
             type="button"
-            className="document-button-primary"
+            className="rounded-lg bg-[#7c5cff] px-4 py-2.5 text-white disabled:cursor-not-allowed disabled:opacity-50"
             onClick={handleUpload}
             disabled={!file || isUploading}
           >

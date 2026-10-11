@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatMessages from "@/components/chat/ChatMessages";
 import DocumentUploadModal from "@/components/documents/DocumentUploadModal";
 import type { Message } from "@/components/chat/types";
 import type { ExtractedPdfDocument } from "@/components/documents/types";
-import "@/App.css";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -126,15 +125,15 @@ function App() {
   }
 
   return (
-    <main className="app">
-      <header className="header">
-        <div className="brand-icon">D</div>
+    <main className="mx-auto flex min-h-screen w-[calc(100%-2rem)] max-w-[850px] flex-col">
+      <header className="flex items-center gap-3 border-b border-[#292d38] py-6">
+        <div className="grid size-[42px] place-items-center rounded-xl bg-[#c4b5fd] text-[22px] font-extrabold text-[#17132a]">D</div>
         <div>
-          <h1>DocuMind</h1>
-          <p>Local AI assistant · Qwen3</p>
+          <h1 className="m-0 text-lg">DocuMind</h1>
+          <p className="m-0 mt-1 text-[13px] text-[#9ca3af]">Local AI assistant · Qwen3</p>
         </div>
-        <span className="status">
-          <span className="status-dot" />{" "}Local
+        <span className="ml-auto flex items-center gap-2 text-xs text-[#86efac]">
+          <span className="size-[7px] rounded-full bg-[#4ade80]" /> Local
         </span>
       </header>
 
@@ -145,55 +144,26 @@ function App() {
         onSuggestion={() => setInput("Explain RAG and how it works.")}
       />
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="text-[13px] text-[#fca5a5]">{error}</p>}
 
       {documents.length > 0 && (
-        <div className="attached-documents attachments">
+        <div className="mb-3 flex flex-wrap gap-2">
           {documents.map(({ id, document }) => (
-            <div className="attached-document attachment" key={id}>
-              <div>
-                <span>📄 {document.filename}</span>
+            <div className="flex max-w-full items-center gap-2 rounded-[10px] border border-[#383838] bg-[#1c1c1c] px-3 py-2" key={id}>
+              <span className="min-w-0 truncate text-sm text-[#d4d4d4]">📄 {document.filename}</span>
                 <button
                   type="button"
+                  className="text-lg leading-none text-[#a3a3a3] hover:text-white"
                   aria-label={`Remove ${document.filename}`}
                   onClick={() =>
                     setDocuments((previous) =>
                       previous.filter((item) => item.id !== id),
                     )
                   }
-                >
-                  ×
-                </button>
-              </div>
-
-              {/* <div className="attached-document-info">
-                <strong>{document.filename}</strong>
-                <span aria-hidden="true">PDF</span>
-                <small>
-                  {document.pageCount}{" "}
-                  {document.pageCount === 1 ? "page" : "pages"}
-                </small>
-              </div> */}
+                >×</button>
             </div>
           ))}
         </div>
-        // <div className="attached-documents">
-        //   {documents.map((document, index) => (
-        //     <div
-        //       className="attached-document"
-        //       key={`${document.filename}-${index}`}
-        //     >
-        //       <span aria-hidden="true">PDF</span>
-        //       <div className="attached-document-info">
-        //         <strong>{document.filename}</strong>
-        //         <small>
-        //           {document.pageCount}{" "}
-        //           {document.pageCount === 1 ? "page" : "pages"}
-        //         </small>
-        //       </div>
-        //     </div>
-        //   ))}
-        // </div>
       )}
 
       <ChatComposer
@@ -217,7 +187,7 @@ function App() {
         />
       )}
 
-      <footer className="footer">
+      <footer className="py-5 text-center text-xs text-[#777989]">
         Powered by Ollama · Running locally on your machine
       </footer>
     </main>
