@@ -1,7 +1,14 @@
+import type { HTMLAttributes, FormEvent } from "react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import "@/App.css";
+
+type MarkdownCodeProps = HTMLAttributes<HTMLElement> & {
+  children?: React.ReactNode;
+};
 
 type Message = {
   id: number;
@@ -11,34 +18,73 @@ type Message = {
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+function MarkdownCode({ className, children, ...props }: MarkdownCodeProps) {
+  const match = /language-([\w-]+)/.exec(className || "");
+
+  if (!match) {
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  }
+
+  return (
+    <SyntaxHighlighter
+      language={match[1]}
+      style={oneDark}
+      PreTag="div"
+      customStyle={{
+        margin: "1rem 0",
+        padding: "1rem",
+        borderRadius: "10px",
+        fontSize: "0.875rem",
+        overflowX: "auto",
+      }}
+      codeTagProps={{
+        style: {
+          fontFamily: '"SFMono-Regular", Consolas, monospace',
+        },
+      }}
+      wrapLongLines={false}
+    >
+      {String(children).replace(/\n$/, "")}
+    </SyntaxHighlighter>
+  );
+}
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [hasReceivedFirstChunk, setHasReceivedFirstChunk] = useState(false);
 
-  async function handleSubmit(event: { preventDefault: () => void }) {
+  
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const message = input.trim();
 
-    if (!message || isLoading) {
-      return;
-    }
+    if (!message || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now(),
-      role: "user",
-      content: message,
-    };
+    const userId = Date.now();
+    const assistantId = userId + 1;
 
-    setMessages((previous) => [...previous, userMessage]);
+    setMessages((previous) => [
+      ...previous,
+      { id: userId, role: "user", content: message },
+      { id: assistantId, role: "assistant", content: "" },
+    ]);
+
     setInput("");
     setError("");
     setIsLoading(true);
 
+    setHasReceivedFirstChunk(false);
+
     try {
-      const response = await fetch(`${API_URL}/chat`, {
+      const response = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -50,16 +96,47 @@ function App() {
         throw new Error(`Request failed (${response.status})`);
       }
 
-      const data: { answer: string } = await response.json();
+      if (!response.body) {
+        throw new Error("Streaming is not supported by this response.");
+      }
 
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: Date.now() + 1,
-          role: "assistant",
-          content: data.answer,
-        },
-      ]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let receivedFirstChunk = false;
+      
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) break;
+
+        if (value?.length && !receivedFirstChunk) {
+          receivedFirstChunk = true;
+          setHasReceivedFirstChunk(true);
+        }
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        setMessages((previous) =>
+          previous.map((item) =>
+            item.id === assistantId
+              ? { ...item, content: item.content + chunk }
+              : item,
+          ),
+        );
+      }
+
+      const remaining = decoder.decode();
+
+      if (remaining) {
+        setMessages((previous) =>
+          previous.map((item) =>
+            item.id === assistantId
+              ? { ...item, content: item.content + remaining }
+              : item,
+          ),
+        );
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -70,6 +147,7 @@ function App() {
       setIsLoading(false);
     }
   }
+
 
   return (
     <main className="app">
@@ -112,9 +190,15 @@ function App() {
                   {message.role === "user" ? "You" : "DocuMind"}
                 </span>
                 
-                {message.role === 'assistant' ? (
+                {message.role === "assistant" ? (
                   <div className="markdown-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        code: MarkdownCode,
+                        pre: ({ children }) => <>{children}</>,
+                      }}
+                    >
                       {message.content}
                     </ReactMarkdown>
                   </div>
@@ -125,7 +209,7 @@ function App() {
               </article>
             ))}
 
-            {isLoading && (
+            {isLoading && !hasReceivedFirstChunk && (
               <div className="message assistant">
                 <span className="message-role">DocuMind</span>
                 <p className="loading">Thinking...</p>
