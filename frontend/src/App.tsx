@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import DocumentsPanel from '@/components/documents/DocumentsPanel';
 import "@/App.css";
 
 type MarkdownCodeProps = HTMLAttributes<HTMLElement> & {
@@ -104,7 +105,7 @@ function App() {
       const decoder = new TextDecoder();
 
       let receivedFirstChunk = false;
-      
+
       while (true) {
         const { value, done } = await reader.read();
 
@@ -220,6 +221,9 @@ function App() {
       </section>
 
       {error && <p className="error">{error}</p>}
+
+      <DocumentsPanel />
+      <p></p>
 
       <form className="composer" onSubmit={handleSubmit}>
         <textarea
