@@ -1,58 +1,11 @@
-import type { HTMLAttributes, FormEvent } from "react";
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import DocumentsPanel from '@/components/documents/DocumentsPanel';
+import ChatComposer from "@/components/chat/ChatComposer";
+import ChatMessages from "@/components/chat/ChatMessages";
+import type { Message } from "@/components/chat/types";
+import DocumentsPanel from "@/components/documents/DocumentsPanel";
 import "@/App.css";
 
-type MarkdownCodeProps = HTMLAttributes<HTMLElement> & {
-  children?: React.ReactNode;
-};
-
-type Message = {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-};
-
 const API_URL = import.meta.env.VITE_API_URL;
-
-function MarkdownCode({ className, children, ...props }: MarkdownCodeProps) {
-  const match = /language-([\w-]+)/.exec(className || "");
-
-  if (!match) {
-    return (
-      <code className={className} {...props}>
-        {children}
-      </code>
-    );
-  }
-
-  return (
-    <SyntaxHighlighter
-      language={match[1]}
-      style={oneDark}
-      PreTag="div"
-      customStyle={{
-        margin: "1rem 0",
-        padding: "1rem",
-        borderRadius: "10px",
-        fontSize: "0.875rem",
-        overflowX: "auto",
-      }}
-      codeTagProps={{
-        style: {
-          fontFamily: '"SFMono-Regular", Consolas, monospace',
-        },
-      }}
-      wrapLongLines={false}
-    >
-      {String(children).replace(/\n$/, "")}
-    </SyntaxHighlighter>
-  );
-}
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,7 +15,7 @@ function App() {
   const [hasReceivedFirstChunk, setHasReceivedFirstChunk] = useState(false);
 
   
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: { preventDefault: () => void }) {
     event.preventDefault();
 
     const message = input.trim();
@@ -163,94 +116,24 @@ function App() {
         </span>
       </header>
 
-      <section className="chat">
-        {messages.length === 0 ? (
-          <div className="welcome">
-            <div className="welcome-icon">✳</div>
-            <h2>What would you like to know?</h2>
-            <p>
-              Ask a question and get an answer from your local AI model.
-            </p>
-            <button
-              className="suggestion"
-              onClick={() =>
-                setInput("Explain RAG and how it works.")
-              }
-            >
-              Explain how RAG works →
-            </button>
-          </div>
-        ) : (
-          <div className="messages">
-            {messages.map((message) => (
-              <article
-                key={message.id}
-                className={`message ${message.role}`}
-              >
-                <span className="message-role">
-                  {message.role === "user" ? "You" : "DocuMind"}
-                </span>
-                
-                {message.role === "assistant" ? (
-                  <div className="markdown-content">
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        code: MarkdownCode,
-                        pre: ({ children }) => <>{children}</>,
-                      }}
-                    >
-                      {message.content}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <p>{message.content}</p>
-                )}
-
-              </article>
-            ))}
-
-            {isLoading && !hasReceivedFirstChunk && (
-              <div className="message assistant">
-                <span className="message-role">DocuMind</span>
-                <p className="loading">Thinking...</p>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <ChatMessages
+        messages={messages}
+        isLoading={isLoading}
+        hasReceivedFirstChunk={hasReceivedFirstChunk}
+        onSuggestion={() => setInput("Explain RAG and how it works.")}
+      />
 
       {error && <p className="error">{error}</p>}
 
       <DocumentsPanel />
       <p></p>
 
-      <form className="composer" onSubmit={handleSubmit}>
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              event.currentTarget.form?.requestSubmit();
-            }
-          }}
-          placeholder="Ask DocuMind anything..."
-          aria-label="Your message"
-          maxLength={4000}
-          rows={2}
-          disabled={isLoading}
-        />
-        <div className="composer-footer">
-          <span>Enter to send · Shift + Enter for a new line</span>
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-          >
-            {isLoading ? "Thinking..." : "Send ↑"}
-          </button>
-        </div>
-      </form>
+      <ChatComposer
+        input={input}
+        isLoading={isLoading}
+        onInputChange={setInput}
+        onSubmit={handleSubmit}
+      />
 
       <footer className="footer">
         Powered by Ollama · Running locally on your machine
