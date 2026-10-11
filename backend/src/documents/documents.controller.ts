@@ -1,9 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Controller,
   HttpCode,
   HttpStatus,
   Post,
+  Body,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -14,6 +16,7 @@ import { memoryStorage } from 'multer';
 import { DocumentsService } from '@/documents/documents.service';
 import { DocumentChunkingService } from '@/documents/document-chunking.service';
 import { EmbeddingsService } from '@/embeddings/embeddings.service';
+import { VectorStoreService } from '@/vector-store/vector-store.service';
 
 @Controller('documents')
 export class DocumentsController {
@@ -21,6 +24,7 @@ export class DocumentsController {
     private readonly documentsService: DocumentsService,
     private readonly documentChunkingService: DocumentChunkingService,
     private readonly embeddingsService: EmbeddingsService,
+    private readonly vectorStoreService: VectorStoreService,
   ) {}
 
   @Post('upload')
@@ -28,10 +32,7 @@ export class DocumentsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: {
-        fileSize: 10 * 1024 * 1024,
-        files: 1,
-      },
+      limits: { fileSize: 10 * 1024 * 1024, files: 1 },
       fileFilter: (_request, file, callback) => {
         if (file.mimetype !== 'application/pdf') {
           return callback(
@@ -98,9 +99,14 @@ export class DocumentsController {
         return;
       }
 
+      const documentId = randomUUID();
+
+      this.vectorStoreService.addDocument(documentId, chunksWithEmbeddings);
+
       res.status(HttpStatus.OK).json({
-        ...document,
-        chunks: chunksWithEmbeddings,
+        documentId,
+        filename: document.filename,
+        pageCount: document.pageCount,
         chunkCount: chunksWithEmbeddings.length,
       });
     } catch (error) {
@@ -110,5 +116,36 @@ export class DocumentsController {
 
       throw error;
     }
+  }
+
+  @Post('search')
+  @HttpCode(HttpStatus.OK)
+  async searchDocuments(@Body() body: { query?: string; documentId?: string }) {
+    const query = body?.query?.trim();
+
+    if (!query) {
+      throw new BadRequestException('A search query is required.');
+    }
+
+    const queryEmbedding =
+      await this.embeddingsService.generateEmbedding(query);
+
+    const results = this.vectorStoreService.search(queryEmbedding, {
+      documentId: body.documentId,
+      topK: 5,
+    });
+
+    return {
+      query,
+      resultCount: results.length,
+      results: results.map((result) => ({
+        documentId: result.documentId,
+        filename: result.filename,
+        pageNumber: result.pageNumber,
+        chunkIndex: result.chunkIndex,
+        text: result.text,
+        score: Number(result.score.toFixed(4)),
+      })),
+    };
   }
 }
