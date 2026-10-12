@@ -9,6 +9,17 @@ type DocumentUploadModalProps = {
 
 const API_URL = import.meta.env.VITE_API_URL;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md"]);
+const ACCEPTED_FILE_TYPES = [
+  ".pdf",
+  ".docx",
+  ".txt",
+  ".md",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/plain",
+  "text/markdown",
+].join(",");
 
 export default function DocumentUploadModal({
   onClose,
@@ -40,16 +51,17 @@ export default function DocumentUploadModal({
 
     if (!selectedFile) return;
 
-    if (
-      selectedFile.type !== "application/pdf" &&
-      !selectedFile.name.toLowerCase().endsWith(".pdf")
-    ) {
-      setError("Please select a PDF file.");
+    const fileExtension = selectedFile.name.slice(
+      selectedFile.name.lastIndexOf(".")
+    ).toLowerCase();
+
+    if (!SUPPORTED_EXTENSIONS.has(fileExtension)) {
+      setError("Please select a PDF, DOCX, TXT, or Markdown file.");
       return;
     }
 
     if (selectedFile.size > MAX_FILE_SIZE) {
-      setError("The PDF must not exceed 10 MB.");
+      setError("The document must not exceed 10 MB.");
       return;
     }
 
@@ -134,7 +146,7 @@ export default function DocumentUploadModal({
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h2 id="document-modal-title" className="m-0 text-xl">Add a document</h2>
-            <p className="mt-2 text-sm text-[#a3a3a3]">Upload a PDF to DocuMind.</p>
+            <p className="mt-2 text-sm text-[#a3a3a3]">Upload a document to DocuMind.</p>
           </div>
 
           <button
@@ -151,13 +163,13 @@ export default function DocumentUploadModal({
         <label className="flex cursor-pointer flex-col items-center gap-2.5 overflow-hidden rounded-xl border border-dashed border-[#555] p-8 text-center hover:border-[#9b87ff] hover:bg-[#7c5cff0f]">
           <span className="grid size-[42px] place-items-center rounded-full bg-[#302653] text-2xl text-[#c4b5fd]">↑</span>
           <strong className="break-words">
-            {file ? file.name : "Choose a PDF file"}
+            {file ? file.name : "Choose a document file"}
           </strong>
-          <span className="text-center text-sm text-[#a3a3a3]">PDF files up to 10 MB</span>
+          <span className="text-center text-sm text-[#a3a3a3]">PDF, DOCX, TXT, or Markdown files up to 10 MB</span>
 
           <input
             type="file"
-            accept=".pdf,application/pdf"
+            accept={ACCEPTED_FILE_TYPES}
             disabled={isUploading}
             onChange={(event) =>
               handleFileChange(event.target.files?.[0])

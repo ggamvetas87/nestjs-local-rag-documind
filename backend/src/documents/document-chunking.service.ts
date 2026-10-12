@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import type { ExtractedPdfPage } from '@/documents/documents.service';
+import type { DocumentType, ExtractedDocument } from '@/documents/types';
 
 export interface DocumentChunk {
   filename: string;
-  pageNumber: number;
+  type: DocumentType;
   chunkIndex: number;
   text: string;
+  pageNumber?: number;
+  heading?: string;
 }
 
 @Injectable()
@@ -13,12 +15,13 @@ export class DocumentChunkingService {
   private readonly chunkSize = 1_000;
   private readonly chunkOverlap = 150;
 
-  // Chunks the pages of a PDF document into smaller text segments for easier processing
-  chunkPages(filename: string, pages: ExtractedPdfPage[]): DocumentChunk[] {
+  // Splits an extracted document into smaller chunks
+  // for easier processing and retrieval
+  chunkDocument(document: ExtractedDocument): DocumentChunk[] {
     const chunks: DocumentChunk[] = [];
 
-    for (const page of pages) {
-      const text = page.text.trim();
+    for (const section of document.sections) {
+      const text = section.text.trim();
 
       if (!text) {
         continue;
@@ -44,10 +47,14 @@ export class DocumentChunkingService {
 
         if (chunkText) {
           chunks.push({
-            filename,
-            pageNumber: page.pageNumber,
+            filename: document.filename,
+            type: document.type,
             chunkIndex,
             text: chunkText,
+            ...(section.pageNumber !== undefined
+              ? { pageNumber: section.pageNumber }
+              : {}),
+            ...(section.heading ? { heading: section.heading } : {}),
           });
 
           chunkIndex++;
@@ -57,7 +64,7 @@ export class DocumentChunkingService {
           break;
         }
 
-        // Move forward while retaining some text from the previous chunk.
+        // Keep overlapping text between consecutive chunks.
         start = Math.max(end - this.chunkOverlap, start + 1);
       }
     }
