@@ -1,3 +1,5 @@
+// src/documents/documents.controller.ts
+
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
@@ -5,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Get,
   Body,
   Res,
   UploadedFile,
@@ -29,6 +32,22 @@ export class DocumentsController {
     private readonly vectorStoreService: VectorStoreService,
     private readonly ragService: RagService,
   ) {}
+
+  // Lists all documents in the database, ordered by creation date in descending order
+  @Get()
+  async getDocuments() {
+    const documents = await this.vectorStoreService.listDocuments();
+
+    return documents.map((document) => ({
+      documentId: document.id,
+      filename: document.filename,
+      type: document.type,
+      ...(document.pageCount !== null && document.pageCount !== undefined
+        ? { pageCount: document.pageCount }
+        : {}),
+      createdAt: document.createdAt,
+    }));
+  }
 
   // Handles PDF file uploads, extracts text, chunks the document,
   // generates embeddings, and stores them in the vector store
@@ -116,7 +135,18 @@ export class DocumentsController {
 
       const documentId = randomUUID();
 
-      this.vectorStoreService.addDocument(documentId, chunksWithEmbeddings);
+      // Add the document and its chunks to the vector store
+      await this.vectorStoreService.addDocument(
+        documentId,
+        chunksWithEmbeddings,
+        {
+          filename: document.filename,
+          type: document.type,
+          ...(document.pageCount !== undefined
+            ? { pageCount: document.pageCount }
+            : {}),
+        },
+      );
 
       res.status(HttpStatus.OK).json({
         documentId,
@@ -150,7 +180,8 @@ export class DocumentsController {
     const queryEmbedding =
       await this.embeddingsService.generateEmbedding(query);
 
-    const results = this.vectorStoreService.search(queryEmbedding, {
+    // Perform the search in the vector store using the generated query embedding
+    const results = await this.vectorStoreService.search(queryEmbedding, {
       documentId: body.documentId,
       topK: 5,
     });
