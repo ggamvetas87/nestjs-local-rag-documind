@@ -16,6 +16,120 @@ import type {
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+type PdfTextItem = { str?: string };
+type PdfPageContent = { items: PdfTextItem[] };
+type PdfPageData = {
+  pageIndex: number;
+  getTextContent: () => Promise<PdfPageContent>;
+};
+
+// Normalizes cell content to a string
+function stringifyCell(cell: unknown): string {
+  if (cell === null || cell === undefined) {
+    return '';
+  }
+
+  if (typeof cell === 'object') {
+    return JSON.stringify(cell) ?? '';
+  }
+
+  if (
+    typeof cell === 'string' ||
+    typeof cell === 'number' ||
+    typeof cell === 'boolean' ||
+    typeof cell === 'bigint' ||
+    typeof cell === 'symbol'
+  ) {
+    return cell.toString();
+  }
+
+  return '';
+}
+
+// Checks if a row has any non-empty cells
+function rowHasContent(row: unknown[]): boolean {
+  return row.some((cell) => stringifyCell(cell).trim() !== '');
+}
+
+// Validates the signature of a spreadsheet file to ensure it matches the expected format
+function validateSpreadsheetSignature(
+  file: Express.Multer.File,
+  type: 'xls' | 'xlsx',
+): void {
+  if (type === 'xlsx') {
+    const isZip =
+      file.buffer.length >= 4 &&
+      file.buffer[0] === 0x50 &&
+      file.buffer[1] === 0x4b;
+
+    if (!isZip) {
+      throw new BadRequestException(
+        'The uploaded file is not a valid XLSX document.',
+      );
+    }
+    return;
+  }
+
+  const oleSignature = Buffer.from([
+    0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+  ]);
+
+  if (
+    file.buffer.length < 8 ||
+    !file.buffer.subarray(0, 8).equals(oleSignature)
+  ) {
+    throw new BadRequestException(
+      'The uploaded file is not a valid XLS document.',
+    );
+  }
+}
+
+// Extracts a section from a spreadsheet worksheet
+function extractSpreadsheetSection(
+  sheetName: string,
+  worksheet: XLSX.WorkSheet,
+): ExtractedDocumentSection | undefined {
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: false,
+  });
+  const headerIndex = matrix.findIndex(rowHasContent);
+
+  if (headerIndex === -1) {
+    return;
+  }
+
+  const rawHeaders = matrix[headerIndex];
+  const columns = rawHeaders.map((cell, index) => {
+    const value = stringifyCell(cell).trim();
+    return value || `Column ${index + 1}`;
+  });
+  const rows = matrix
+    .slice(headerIndex + 1)
+    .filter(rowHasContent)
+    .map((row) =>
+      columns
+        .map((column, index) => {
+          const value = stringifyCell(row[index]).trim();
+          return value ? `${column}: ${value}` : `${column}: (empty)`;
+        })
+        .join(' | '),
+    );
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  return {
+    sheetName,
+    columns,
+    rows,
+    text: rows.join('\n'),
+  };
+}
+
 @Injectable()
 export class DocumentsService {
   async extract(
@@ -78,7 +192,7 @@ export class DocumentsService {
 
     try {
       const result = await pdf(file.buffer, {
-        pagerender: async (pageData) => {
+        pagerender: async (pageData: PdfPageData) => {
           if (signal?.aborted) {
             return '';
           }
@@ -86,7 +200,7 @@ export class DocumentsService {
           const content = await pageData.getTextContent();
 
           const pageText = content.items
-            .map((item) => ('str' in item ? item.str : ''))
+            .map((item) => item.str ?? '')
             .join(' ')
             .trim();
 
@@ -107,7 +221,7 @@ export class DocumentsService {
         filename: file.originalname,
         type: 'pdf',
         pageCount: result.numpages,
-        sections: pages.sort(
+        sections: pages.toSorted(
           (a, b) => (a.pageNumber ?? 0) - (b.pageNumber ?? 0),
         ),
       };
@@ -217,11 +331,27 @@ export class DocumentsService {
     };
 
     for (const line of lines) {
-      const match = line.match(/^#{1,6}\s+(.+?)\s*#*\s*$/);
+      let hashCount = 0;
 
-      if (match) {
+      while (line[hashCount] === '#') {
+        hashCount += 1;
+      }
+
+      const remainder = line.slice(hashCount);
+      const isHeading =
+        hashCount > 0 &&
+        hashCount <= 6 &&
+        (remainder.startsWith(' ') || remainder.startsWith('\t'));
+
+      if (isHeading) {
         flushSection();
-        heading = match[1].trim();
+        let parsedHeading = remainder.trim();
+
+        while (parsedHeading.endsWith('#')) {
+          parsedHeading = parsedHeading.slice(0, -1).trimEnd();
+        }
+
+        heading = parsedHeading;
         currentLines.push(line);
       } else {
         currentLines.push(line);
@@ -237,10 +367,7 @@ export class DocumentsService {
     };
   }
 
-  /**
-   * Extracts text and structure from spreadsheet files (CSV, XLS, XLSX).
-   * Returns an ExtractedDocument with sections corresponding to each sheet.
-   */
+  // Extracts text and structure from spreadsheet files, one section per sheet.
   private extractSpreadsheet(
     file: Express.Multer.File,
     type: 'csv' | 'xls' | 'xlsx',
@@ -250,33 +377,8 @@ export class DocumentsService {
       return;
     }
 
-    // Validate the basic file signature for Excel formats.
-    if (type === 'xlsx') {
-      const isZip =
-        file.buffer.length >= 4 &&
-        file.buffer[0] === 0x50 &&
-        file.buffer[1] === 0x4b;
-
-      if (!isZip) {
-        throw new BadRequestException(
-          'The uploaded file is not a valid XLSX document.',
-        );
-      }
-    }
-
-    if (type === 'xls') {
-      const oleSignature = Buffer.from([
-        0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
-      ]);
-
-      if (
-        file.buffer.length < 8 ||
-        !file.buffer.subarray(0, 8).equals(oleSignature)
-      ) {
-        throw new BadRequestException(
-          'The uploaded file is not a valid XLS document.',
-        );
-      }
+    if (type !== 'csv') {
+      validateSpreadsheetSignature(file, type);
     }
 
     try {
@@ -290,66 +392,16 @@ export class DocumentsService {
         return;
       }
 
-      const sections: ExtractedDocumentSection[] = [];
-
-      for (const sheetName of workbook.SheetNames) {
-        if (signal?.aborted) {
-          return;
-        }
-
+      const sections = workbook.SheetNames.flatMap((sheetName) => {
         const worksheet = workbook.Sheets[sheetName];
 
         if (!worksheet) {
-          continue;
+          return [];
         }
 
-        const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-          header: 1,
-          defval: '',
-          raw: false,
-          blankrows: false,
-        });
-
-        // Find the first non-empty row to use as the column headers.
-        const headerIndex = matrix.findIndex((row) =>
-          row.some((cell) => String(cell ?? '').trim() !== ''),
-        );
-
-        if (headerIndex === -1) {
-          continue;
-        }
-
-        const rawHeaders = matrix[headerIndex];
-
-        const columns = rawHeaders.map((cell, index) => {
-          const value = String(cell ?? '').trim();
-          return value || `Column ${index + 1}`;
-        });
-
-        const rows = matrix
-          .slice(headerIndex + 1)
-          .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
-          .map((row) =>
-            columns
-              .map((column, index) => {
-                const value = String(row[index] ?? '').trim();
-
-                return value ? `${column}: ${value}` : `${column}: (empty)`;
-              })
-              .join(' | '),
-          );
-
-        if (rows.length === 0) {
-          continue;
-        }
-
-        sections.push({
-          sheetName,
-          columns,
-          rows,
-          text: rows.join('\n'),
-        });
-      }
+        const section = extractSpreadsheetSection(sheetName, worksheet);
+        return section ? [section] : [];
+      });
 
       if (signal?.aborted) {
         return;

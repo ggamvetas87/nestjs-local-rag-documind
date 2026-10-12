@@ -26,9 +26,10 @@ export class RagService {
     const queryEmbedding =
       await this.embeddingsService.generateEmbedding(normalizedQuery);
 
-    const results = this.vectorStoreService.search(queryEmbedding, {
+    // Perform the search in the vector store using the generated query embedding
+    const results = await this.vectorStoreService.search(queryEmbedding, {
       documentId,
-      topK: 3,
+      topK: 5,
     });
 
     if (results.length === 0) {

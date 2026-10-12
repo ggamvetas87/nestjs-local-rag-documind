@@ -1,5 +1,11 @@
+// src/vector-store/vector-store.service.ts
+
 import { Injectable } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { DocumentEntity } from '@/documents/entities/document.entity';
+import { DocumentChunkEntity } from '@/documents/entities/document-chunk.entity';
 import type { DocumentChunk } from '@/documents/document-chunking.service';
+import type { DocumentType } from '@/documents/types';
 
 export interface StoredDocumentChunk extends DocumentChunk {
   documentId: string;
@@ -10,75 +16,155 @@ export interface SearchResult extends StoredDocumentChunk {
   score: number;
 }
 
+export interface DocumentMetadata {
+  filename: string;
+  type: DocumentType;
+  pageCount?: number;
+}
+
 @Injectable()
 export class VectorStoreService {
-  private readonly documents = new Map<string, StoredDocumentChunk[]>();
+  constructor(private readonly dataSource: DataSource) {}
 
-  // Adds a new document along with its chunks and embeddings to the vector store
-  addDocument(
+  // Persists a document and its chunks atomically.
+  async addDocument(
     documentId: string,
     chunks: Array<DocumentChunk & { embedding: number[] }>,
-  ): void {
-    const storedChunks: StoredDocumentChunk[] = chunks.map((chunk) => ({
-      ...chunk,
-      documentId,
-    }));
+    metadata?: DocumentMetadata,
+  ): Promise<void> {
+    const firstChunk = chunks[0];
 
-    this.documents.set(documentId, storedChunks);
+    const documentMetadata =
+      metadata ??
+      (firstChunk
+        ? {
+            filename: firstChunk.filename,
+            type: firstChunk.type,
+          }
+        : undefined);
+
+    if (!documentMetadata) {
+      throw new Error(
+        'Document metadata is required when adding a document without chunks.',
+      );
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.save(DocumentEntity, {
+        id: documentId,
+        filename: documentMetadata.filename,
+        type: documentMetadata.type,
+        pageCount: documentMetadata.pageCount,
+      });
+
+      if (chunks.length === 0) {
+        return;
+      }
+
+      await manager.insert(
+        DocumentChunkEntity,
+        chunks.map((chunk) => ({
+          documentId,
+          chunkIndex: chunk.chunkIndex,
+          text: chunk.text,
+          embedding: chunk.embedding,
+          ...(chunk.pageNumber !== undefined
+            ? { pageNumber: chunk.pageNumber }
+            : {}),
+          ...(chunk.heading !== undefined ? { heading: chunk.heading } : {}),
+          ...(chunk.sheetName !== undefined
+            ? { sheetName: chunk.sheetName }
+            : {}),
+        })),
+      );
+    });
   }
 
-  // Searches for the most similar document chunks based on the query embedding
-  search(
+  // Searches PostgreSQL for the most similar document chunks.
+  async search(
     queryEmbedding: number[],
     options: { documentId?: string; topK?: number } = {},
-  ): SearchResult[] {
+  ): Promise<SearchResult[]> {
     const { documentId, topK = 5 } = options;
 
     if (queryEmbedding.length === 0) {
       throw new Error('Query embedding cannot be empty.');
     }
 
-    const chunks = documentId
-      ? (this.documents.get(documentId) ?? [])
-      : Array.from(this.documents.values()).flat();
-
-    return chunks
-      .map((chunk) => ({
-        ...chunk,
-        score: this.cosineSimilarity(queryEmbedding, chunk.embedding),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(0, topK));
-  }
-
-  deleteDocument(documentId: string): boolean {
-    return this.documents.delete(documentId);
-  }
-
-  // Computes the cosine similarity between two vectors.
-  // Returns a value between -1 and 1, where:
-  // [+] 1 indicates identical direction
-  // [+] 0 indicates orthogonality
-  // [+] -1 indicates opposite direction.
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) {
-      throw new Error('Embedding dimensions do not match.');
+    if (queryEmbedding.length !== 1024) {
+      throw new Error('Query embedding must contain 1024 dimensions.');
     }
 
-    let dotProduct = 0;
-    let magnitudeA = 0;
-    let magnitudeB = 0;
+    const limit = Math.max(0, Math.floor(topK));
 
-    for (let i = 0; i < a.length; i++) {
-      dotProduct += a[i] * b[i];
-      magnitudeA += a[i] ** 2;
-      magnitudeB += b[i] ** 2;
+    if (limit === 0) {
+      return [];
     }
 
-    const denominator = Math.sqrt(magnitudeA) * Math.sqrt(magnitudeB);
+    const rows: Array<{
+      documentId: string;
+      filename: string;
+      type: DocumentType;
+      chunkIndex: number;
+      text: string;
+      pageNumber: number | null;
+      heading: string | null;
+      sheetName: string | null;
+      score: number | string;
+    }> = await this.dataSource.query(
+      `
+        SELECT
+          dc.document_id AS "documentId",
+          d.filename AS "filename",
+          d.type AS "type",
+          dc.chunk_index AS "chunkIndex",
+          dc.text AS "text",
+          dc.page_number AS "pageNumber",
+          dc.heading AS "heading",
+          dc.sheet_name AS "sheetName",
+          1 - (dc.embedding <=> $1::vector) AS "score"
+        FROM document_chunks dc
+        INNER JOIN documents d
+          ON d.id = dc.document_id
+        WHERE ($2::uuid IS NULL OR dc.document_id = $2::uuid)
+        ORDER BY dc.embedding <=> $1::vector ASC
+        LIMIT $3
+      `,
+      [JSON.stringify(queryEmbedding), documentId ?? null, limit],
+    );
 
-    if (denominator === 0) return 0;
+    return rows.map((row) => ({
+      documentId: row.documentId,
+      filename: row.filename,
+      type: row.type,
+      chunkIndex: row.chunkIndex,
+      pageNumber: row.pageNumber ?? undefined,
+      heading: row.heading ?? undefined,
+      sheetName: row.sheetName ?? undefined,
+      text: row.text,
+      ...(row.pageNumber !== null ? { pageNumber: row.pageNumber } : {}),
+      ...(row.heading !== null ? { heading: row.heading } : {}),
+      ...(row.sheetName !== null ? { sheetName: row.sheetName } : {}),
+      embedding: [],
+      score: Number(row.score),
+    }));
+  }
 
-    return dotProduct / denominator;
+  // Deletes the document; PostgreSQL cascades the deletion to its chunks.
+  async deleteDocument(documentId: string): Promise<boolean> {
+    const result = await this.dataSource
+      .getRepository(DocumentEntity)
+      .delete(documentId);
+
+    return (result.affected ?? 0) > 0;
+  }
+
+  // Lists all documents in the database, ordered by creation date in descending order
+  async listDocuments(): Promise<DocumentEntity[]> {
+    return this.dataSource.getRepository(DocumentEntity).find({
+      order: {
+        createdAt: 'DESC',
+      },
+    });
   }
 }

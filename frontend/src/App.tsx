@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatMessages from "@/components/chat/ChatMessages";
 import DocumentUploadModal from "@/components/documents/DocumentUploadModal";
@@ -122,6 +122,40 @@ function App() {
   const [isDocumentModalOpen, setIsDocumentModalOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<UploadedPdfDocument[]>([]);
+
+  useEffect(() => {
+    async function loadDocuments() {
+      try {
+        const response = await fetch(`${API_URL}/documents`);
+
+        if (!response.ok) {
+          throw new Error("Failed to load saved documents.");
+        }
+
+        const savedDocuments: UploadedPdfDocument[] =
+          await response.json();
+
+        setDocuments(savedDocuments);
+
+        setSelectedDocumentId((currentId) => {
+          if (
+            currentId &&
+            savedDocuments.some(
+              (document) => document.documentId === currentId,
+            )
+          ) {
+            return currentId;
+          }
+
+          return savedDocuments[0]?.documentId ?? null;
+        });
+      } catch (err) {
+        console.error("Could not load saved documents:", err);
+      }
+    }
+
+    void loadDocuments();
+  }, []);
 
   async function handleSubmit(event: { preventDefault: () => void }) {
     event.preventDefault();
