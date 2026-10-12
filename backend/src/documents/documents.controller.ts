@@ -40,13 +40,19 @@ export class DocumentsController {
       limits: { fileSize: 10 * 1024 * 1024, files: 1 },
       fileFilter: (_request, file, callback) => {
         const extension = extname(file.originalname).toLowerCase();
-        const allowedExtensions = ['.pdf', '.docx', '.txt', '.md'];
+        const allowedExtensions = new Set([
+          '.pdf',
+          '.docx',
+          '.txt',
+          '.md',
+          '.csv',
+          '.xls',
+          '.xlsx',
+        ]);
 
-        if (!allowedExtensions.includes(extension)) {
+        if (!allowedExtensions.has(extension)) {
           return callback(
-            new BadRequestException(
-              'Unsupported file type. Upload a PDF, DOCX, TXT, or MD file.',
-            ),
+            new BadRequestException('Unsupported document file type.'),
             false,
           );
         }

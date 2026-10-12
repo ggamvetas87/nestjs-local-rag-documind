@@ -1,3 +1,5 @@
+// src/documents/documents.service.ts
+
 import {
   BadRequestException,
   Injectable,
@@ -6,6 +8,7 @@ import {
 import { extname } from 'node:path';
 import * as mammoth from 'mammoth';
 import pdf from 'pdf-parse';
+import * as XLSX from 'xlsx';
 import type {
   ExtractedDocument,
   ExtractedDocumentSection,
@@ -46,13 +49,23 @@ export class DocumentsService {
       case '.md':
         return this.extractMarkdown(file, signal);
 
+      case '.csv':
+        return this.extractSpreadsheet(file, 'csv', signal);
+
+      case '.xls':
+        return this.extractSpreadsheet(file, 'xls', signal);
+
+      case '.xlsx':
+        return this.extractSpreadsheet(file, 'xlsx', signal);
+
       default:
         throw new BadRequestException(
-          'Unsupported file type. Upload a PDF, DOCX, TXT, or MD file.',
+          'Unsupported file type. Upload a PDF, DOCX, TXT, MD, CSV, XLS, or XLSX file.',
         );
     }
   }
 
+  // Extracts text and structure from PDF files
   private async extractPdf(
     file: Express.Multer.File,
     signal?: AbortSignal,
@@ -111,6 +124,7 @@ export class DocumentsService {
     }
   }
 
+  // Extracts text from DOCX files
   private async extractDocx(
     file: Express.Multer.File,
     signal?: AbortSignal,
@@ -153,6 +167,7 @@ export class DocumentsService {
     }
   }
 
+  // Extracts text from plain text files (TXT)
   private extractText(
     file: Express.Multer.File,
     type: 'txt',
@@ -171,6 +186,7 @@ export class DocumentsService {
     };
   }
 
+  // Extracts text and structure from Markdown files, preserving headings as section metadata
   private extractMarkdown(
     file: Express.Multer.File,
     signal?: AbortSignal,
@@ -221,6 +237,153 @@ export class DocumentsService {
     };
   }
 
+  /**
+   * Extracts text and structure from spreadsheet files (CSV, XLS, XLSX).
+   * Returns an ExtractedDocument with sections corresponding to each sheet.
+   */
+  private extractSpreadsheet(
+    file: Express.Multer.File,
+    type: 'csv' | 'xls' | 'xlsx',
+    signal?: AbortSignal,
+  ): ExtractedDocument | undefined {
+    if (signal?.aborted) {
+      return;
+    }
+
+    // Validate the basic file signature for Excel formats.
+    if (type === 'xlsx') {
+      const isZip =
+        file.buffer.length >= 4 &&
+        file.buffer[0] === 0x50 &&
+        file.buffer[1] === 0x4b;
+
+      if (!isZip) {
+        throw new BadRequestException(
+          'The uploaded file is not a valid XLSX document.',
+        );
+      }
+    }
+
+    if (type === 'xls') {
+      const oleSignature = Buffer.from([
+        0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1,
+      ]);
+
+      if (
+        file.buffer.length < 8 ||
+        !file.buffer.subarray(0, 8).equals(oleSignature)
+      ) {
+        throw new BadRequestException(
+          'The uploaded file is not a valid XLS document.',
+        );
+      }
+    }
+
+    try {
+      const workbook = XLSX.read(file.buffer, {
+        type: 'buffer',
+        raw: false,
+        codepage: 65001,
+      });
+
+      if (signal?.aborted) {
+        return;
+      }
+
+      const sections: ExtractedDocumentSection[] = [];
+
+      for (const sheetName of workbook.SheetNames) {
+        if (signal?.aborted) {
+          return;
+        }
+
+        const worksheet = workbook.Sheets[sheetName];
+
+        if (!worksheet) {
+          continue;
+        }
+
+        const matrix = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+          header: 1,
+          defval: '',
+          raw: false,
+          blankrows: false,
+        });
+
+        // Find the first non-empty row to use as the column headers.
+        const headerIndex = matrix.findIndex((row) =>
+          row.some((cell) => String(cell ?? '').trim() !== ''),
+        );
+
+        if (headerIndex === -1) {
+          continue;
+        }
+
+        const rawHeaders = matrix[headerIndex];
+
+        const columns = rawHeaders.map((cell, index) => {
+          const value = String(cell ?? '').trim();
+          return value || `Column ${index + 1}`;
+        });
+
+        const rows = matrix
+          .slice(headerIndex + 1)
+          .filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''))
+          .map((row) =>
+            columns
+              .map((column, index) => {
+                const value = String(row[index] ?? '').trim();
+
+                return value ? `${column}: ${value}` : `${column}: (empty)`;
+              })
+              .join(' | '),
+          );
+
+        if (rows.length === 0) {
+          continue;
+        }
+
+        sections.push({
+          sheetName,
+          columns,
+          rows,
+          text: rows.join('\n'),
+        });
+      }
+
+      if (signal?.aborted) {
+        return;
+      }
+
+      if (sections.length === 0) {
+        throw new BadRequestException(
+          'The spreadsheet does not contain any tabular data.',
+        );
+      }
+
+      return {
+        filename: file.originalname,
+        type,
+        sections,
+      };
+    } catch (error) {
+      if (signal?.aborted) {
+        return;
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      console.error('Spreadsheet extraction failed:', error);
+
+      throw new BadRequestException(
+        'Could not read this spreadsheet. The file may be corrupted or unsupported.',
+      );
+    }
+  }
+
+  // Decodes the content of a text file, ensuring it is valid and non-empty
   private decodeTextFile(file: Express.Multer.File): string {
     const text = file.buffer.toString('utf8');
 

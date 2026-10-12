@@ -1,3 +1,5 @@
+// src/documents/rag.service.ts
+
 import { Injectable, BadRequestException } from '@nestjs/common';
 import ollama from 'ollama';
 import { EmbeddingsService } from '@/embeddings/embeddings.service';
@@ -38,10 +40,19 @@ export class RagService {
     }
 
     const context = results
-      .map(
-        (result, index) =>
-          `[Source ${index + 1} | File: ${result.filename} | Page: ${result.pageNumber}]\n${result.text}`,
-      )
+      .map((result, index) => {
+        const metadata = [
+          `Source ${index + 1}`,
+          `File: ${result.filename}`,
+          ...(result.pageNumber !== undefined
+            ? [`Page: ${result.pageNumber}`]
+            : []),
+          ...(result.sheetName ? [`Worksheet: ${result.sheetName}`] : []),
+          ...(result.heading ? [`Section: ${result.heading}`] : []),
+        ].join(' | ');
+
+        return `[${metadata}]\n${result.text}`;
+      })
       .join('\n\n');
 
     const response = await ollama.chat({
@@ -57,6 +68,7 @@ export class RagService {
             'If the context does not contain enough information, say so clearly.',
             'Do not invent facts or citations.',
             'When making factual claims, cite the relevant source using [Source 1], [Source 2], etc.',
+            'Source metadata may include a file name, page number, worksheet name, or section heading.',
             'Answer in the same language as the user.',
           ].join(' '),
         },
@@ -73,7 +85,13 @@ export class RagService {
         source: index + 1,
         documentId: result.documentId,
         filename: result.filename,
-        pageNumber: result.pageNumber,
+        ...(result.pageNumber !== undefined
+          ? { pageNumber: result.pageNumber }
+          : {}),
+        ...(result.sheetName !== undefined
+          ? { sheetName: result.sheetName }
+          : {}),
+        ...(result.heading ? { heading: result.heading } : {}),
         score: Number(result.score.toFixed(4)),
       })),
     };

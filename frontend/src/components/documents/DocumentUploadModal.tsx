@@ -9,16 +9,22 @@ type DocumentUploadModalProps = {
 
 const API_URL = import.meta.env.VITE_API_URL;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const SUPPORTED_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md"]);
+const SUPPORTED_EXTENSIONS = new Set([".pdf", ".docx", ".txt", ".md", ".csv", ".xls", ".xlsx"]);
 const ACCEPTED_FILE_TYPES = [
   ".pdf",
   ".docx",
   ".txt",
   ".md",
+  ".csv",
+  ".xls",
+  ".xlsx",
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/plain",
   "text/markdown",
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ].join(",");
 
 export default function DocumentUploadModal({
@@ -165,7 +171,7 @@ export default function DocumentUploadModal({
           <strong className="break-words">
             {file ? file.name : "Choose a document file"}
           </strong>
-          <span className="text-center text-sm text-[#a3a3a3]">PDF, DOCX, TXT, or Markdown files up to 10 MB</span>
+          <span className="text-center text-sm text-[#a3a3a3]">PDF, DOCX, CSV, XLS, XLSX, TXT, or Markdown files up to 10 MB</span>
 
           <input
             type="file"

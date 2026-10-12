@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import { useRef, useState } from "react";
 import ChatComposer from "@/components/chat/ChatComposer";
 import ChatMessages from "@/components/chat/ChatMessages";
@@ -13,7 +15,8 @@ type DocumentAnswer = {
   citations: {
     source: number;
     filename: string;
-    pageNumber: number;
+    pageNumber?: number;
+    sheetName?: string;
     score: number;
   }[];
 };
@@ -151,8 +154,16 @@ function App() {
         const citationsText = result.citations.length
           ? "\n\n**Sources**\n\n" + result.citations
               .map(
-                (citation) =>
-                  `- ${citation.source}. ${citation.filename}, page ${citation.pageNumber}`,
+                citation =>
+                  `- ${citation.source}. ${citation.filename}${
+                    citation.pageNumber !== undefined
+                      ? `, page ${citation.pageNumber}`
+                      : ""
+                  }${
+                    citation.sheetName
+                      ? `, worksheet: ${citation.sheetName}`
+                      : ""
+                  }`,
               )
               .join("\n")
           : "";
