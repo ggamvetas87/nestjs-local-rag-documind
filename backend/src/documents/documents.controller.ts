@@ -10,6 +10,7 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import { extname } from 'node:path';
 import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -38,9 +39,20 @@ export class DocumentsController {
       storage: memoryStorage(),
       limits: { fileSize: 10 * 1024 * 1024, files: 1 },
       fileFilter: (_request, file, callback) => {
-        if (file.mimetype !== 'application/pdf') {
+        const extension = extname(file.originalname).toLowerCase();
+        const allowedExtensions = new Set([
+          '.pdf',
+          '.docx',
+          '.txt',
+          '.md',
+          '.csv',
+          '.xls',
+          '.xlsx',
+        ]);
+
+        if (!allowedExtensions.has(extension)) {
           return callback(
-            new BadRequestException('Only PDF files are allowed.'),
+            new BadRequestException('Unsupported document file type.'),
             false,
           );
         }
@@ -49,7 +61,7 @@ export class DocumentsController {
       },
     }),
   )
-  async uploadPdf(
+  async uploadDocument(
     @UploadedFile() file: Express.Multer.File,
     @Res() res: Response,
   ): Promise<void> {
@@ -62,7 +74,7 @@ export class DocumentsController {
     });
 
     try {
-      const document = await this.documentsService.extractPdf(
+      const document = await this.documentsService.extract(
         file,
         abortController.signal,
       );
@@ -71,13 +83,12 @@ export class DocumentsController {
         return;
       }
 
-      const chunks = this.documentChunkingService.chunkPages(
-        document.filename,
-        document.pages,
-      );
+      const chunks = this.documentChunkingService.chunkDocument(document);
 
-      if (abortController.signal.aborted || res.destroyed) {
-        return;
+      if (chunks.length === 0) {
+        throw new BadRequestException(
+          'No extractable text was found in the uploaded document.',
+        );
       }
 
       const chunksWithEmbeddings: Array<
@@ -110,7 +121,10 @@ export class DocumentsController {
       res.status(HttpStatus.OK).json({
         documentId,
         filename: document.filename,
-        pageCount: document.pageCount,
+        type: document.type,
+        ...(document.pageCount !== undefined
+          ? { pageCount: document.pageCount }
+          : {}),
         chunkCount: chunksWithEmbeddings.length,
       });
     } catch (error) {
@@ -147,7 +161,11 @@ export class DocumentsController {
       results: results.map((result) => ({
         documentId: result.documentId,
         filename: result.filename,
-        pageNumber: result.pageNumber,
+        type: result.type,
+        ...(result.pageNumber !== undefined
+          ? { pageNumber: result.pageNumber }
+          : {}),
+        ...(result.heading ? { heading: result.heading } : {}),
         chunkIndex: result.chunkIndex,
         text: result.text,
         score: Number(result.score.toFixed(4)),
