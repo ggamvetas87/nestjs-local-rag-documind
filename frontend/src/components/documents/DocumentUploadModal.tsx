@@ -1,4 +1,6 @@
 
+// src/components/documents/DocumentUploadModal.tsx
+
 import { useState, useRef } from "react";
 import type { UploadedPdfDocument } from "@/components/documents/types";
 
